@@ -4,72 +4,202 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Синхронный просмотр видео</title>
-  <script src="https://unpkg.com/peerjs@latest/dist/peerjs.min.js"></script>
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script src="https://www.youtube.com/iframe_api"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --primary-color: #1e90ff;
+      --secondary-color: #2ecc71;
+      --background-color: #1a1a1a;
+      --text-color: #ffffff;
+      --error-color: #ff4d4d;
+      --input-bg: #2c2c2c;
+      --card-bg: #242424;
+      --shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+      --notification-bg: rgba(255, 255, 255, 0.1);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
     body {
-      font-family: Arial, sans-serif;
+      font-family: 'Inter', sans-serif;
+      background-color: var(--background-color);
+      color: var(--text-color);
+      min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
-      background-color: #f0f0f0;
-      margin: 0;
       padding: 20px;
+      animation: fadeIn 0.5s ease-in;
     }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 20px;
+      text-align: center;
+      color: var(--primary-color);
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
     #videoContainer {
       width: 100%;
-      max-width: 800px;
+      max-width: 900px;
+      aspect-ratio: 16 / 9;
+      background: var(--card-bg);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
       margin-bottom: 20px;
+      animation: slideIn 0.5s ease-out;
     }
-    #player {
+
+    #player, #genericPlayer {
       width: 100%;
-      height: 450px;
+      height: 100%;
       border: none;
     }
+
     #controls {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
       width: 100%;
-      max-width: 800px;
+      max-width: 900px;
+      display: grid;
+      gap: 15px;
+      padding: 20px;
+      background: var(--card-bg);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
     }
-    input, button {
-      padding: 10px;
-      font-size: 16px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-    }
-    button {
-      background-color: #4CAF50;
-      color: white;
-      cursor: pointer;
+
+    input {
+      padding: 12px;
+      font-size: 1rem;
       border: none;
+      border-radius: 8px;
+      background: var(--input-bg);
+      color: var(--text-color);
+      transition: all 0.3s ease;
     }
+
+    input:focus {
+      outline: none;
+      box-shadow: 0 0 0 2px var(--primary-color);
+    }
+
+    button {
+      padding: 12px;
+      font-size: 1rem;
+      font-weight: 500;
+      border: none;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      color: var(--text-color);
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
     button:hover {
-      background-color: #45a049;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     }
-    #status, #error {
-      margin-top: 10px;
-      color: #333;
+
+    button:active {
+      transform: translateY(0);
     }
+
+    #status, #participantCount {
+      font-size: 1rem;
+      padding: 10px;
+      background: var(--notification-bg);
+      border-radius: 8px;
+      text-align: center;
+    }
+
     #error {
-      color: red;
+      font-size: 1rem;
+      color: var(--error-color);
+      text-align: center;
+    }
+
+    #notifications {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      width: 300px;
+      z-index: 1000;
+    }
+
+    .notification {
+      background: var(--notification-bg);
+      color: var(--text-color);
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      animation: slideInRight 0.3s ease-out;
+      opacity: 0.9;
+    }
+
+    @keyframes slideInRight {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 0.9; }
+    }
+
+    @media (max-width: 600px) {
+      h1 {
+        font-size: 1.8rem;
+      }
+
+      #videoContainer {
+        max-width: 100%;
+      }
+
+      #controls {
+        padding: 15px;
+      }
+
+      input, button {
+        font-size: 0.9rem;
+        padding: 10px;
+      }
+
+      #notifications {
+        width: 90%;
+        right: 5%;
+      }
+    }
+
+    @keyframes slideIn {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
     }
   </style>
 </head>
 <body>
   <h1>Синхронный просмотр видео</h1>
+  <div id="notifications"></div>
   <div id="videoContainer">
     <div id="player"></div>
+    <iframe id="genericPlayer" style="display: none;"></iframe>
   </div>
   <div id="controls">
-    <input id="videoUrl" type="text" placeholder="Вставьте ссылку на видео (например, YouTube)">
+    <input id="videoUrl" type="text" placeholder="Вставьте ссылку на видео (YouTube, Vimeo, Dailymotion и др.)">
     <button onclick="loadVideo()">Загрузить видео</button>
     <button onclick="generateLink()">Создать комнату</button>
     <input id="roomId" type="text" placeholder="Введите ID комнаты для подключения">
-    <button onclick="joinRoom()">Присоединиться к комнате</button>
+    <button id="joinRoomButton" onclick="joinRoom()">Присоединиться к комнате</button>
     <button onclick="syncVideo()">Синхронизировать видео</button>
     <div id="status">Статус: Не подключено</div>
+    <div id="participantCount">Участников: 0</div>
     <div id="error"></div>
   </div>
 
@@ -78,17 +208,34 @@
     var conn;
     var isHost = false;
     var player;
+    var genericPlayer = document.getElementById('genericPlayer');
     var status = document.getElementById('status');
     var errorDiv = document.getElementById('error');
+    var participantCount = 0;
     var ytApiReady = false;
     var pendingVideoId = null;
+    var currentPlatform = null;
+
+    // Функция для отображения уведомлений
+    function showNotification(message) {
+      var notifications = document.getElementById('notifications');
+      var notification = document.createElement('div');
+      notification.className = 'notification';
+      notification.textContent = message;
+      notifications.appendChild(notification);
+      setTimeout(function() {
+        if (notification.parentNode) {
+          notifications.removeChild(notification);
+        }
+      }, 5000);
+    }
 
     // Проверка загрузки YouTube API
     function onYouTubeIframeAPIReady() {
       ytApiReady = true;
       console.log('YouTube API Ready');
       errorDiv.textContent = '';
-      if (pendingVideoId) {
+      if (pendingVideoId && currentPlatform === 'youtube') {
         loadVideoFromId(pendingVideoId);
         pendingVideoId = null;
       }
@@ -96,7 +243,7 @@
 
     // Повторная попытка загрузки API
     function checkYouTubeApi() {
-      if (!ytApiReady) {
+      if (!ytApiReady && currentPlatform === 'youtube') {
         console.log('YouTube API not loaded, retrying...');
         errorDiv.textContent = 'Ожидание загрузки YouTube API...';
         setTimeout(checkYouTubeApi, 1000);
@@ -120,6 +267,9 @@
         peer.on('connection', function(connection) {
           conn = connection;
           setupConnection();
+          participantCount++;
+          document.getElementById('participantCount').textContent = 'Участников: ' + participantCount;
+          showNotification('Новый участник подключился');
           status.textContent = 'Статус: Подключен клиент';
           console.log('Client connected:', connection.peer);
         });
@@ -139,23 +289,23 @@
     function setupConnection() {
       conn.on('data', function(data) {
         console.log('Received data:', data);
-        if (data.type === 'play') {
+        if (data.type === 'play' && currentPlatform === 'youtube') {
           if (player && ytApiReady) {
             player.seekTo(data.time, true);
             player.playVideo();
             errorDiv.textContent = '';
           } else {
-            errorDiv.textContent = 'Ошибка: плеер не готов';
-            console.error('Player not ready for play command');
+            errorDiv.textContent = 'Ошибка: YouTube-плеер не готов';
+            console.error('YouTube player not ready for play command');
           }
-        } else if (data.type === 'pause') {
+        } else if (data.type === 'pause' && currentPlatform === 'youtube') {
           if (player && ytApiReady) {
             player.pauseVideo();
             errorDiv.textContent = '';
           }
         } else if (data.type === 'load') {
           loadVideoFromUrl(data.url);
-        } else if (data.type === 'sync') {
+        } else if (data.type === 'sync' && currentPlatform === 'youtube') {
           if (player && ytApiReady) {
             player.seekTo(data.time, true);
             if (data.state === YT.PlayerState.PLAYING) {
@@ -184,47 +334,85 @@
       }
     }
 
-    // Нормализация URL
+    // Нормализация URL и определение платформы
     function normalizeUrl(url) {
+      url = url.trim();
       if (url.includes('youtube.com') || url.includes('youtu.be')) {
         var videoId = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
+        currentPlatform = 'youtube';
         return videoId ? 'https://www.youtube.com/watch?v=' + videoId : url;
+      } else if (url.includes('vimeo.com')) {
+        var videoId = url.match(/(?:vimeo\.com\/|player\.vimeo\.com\/video\/)([0-9]+)/)?.[1];
+        currentPlatform = 'vimeo';
+        return videoId ? 'https://player.vimeo.com/video/' + videoId : url;
+      } else if (url.includes('dailymotion.com') || url.includes('dai.ly')) {
+        var videoId = url.match(/(?:dailymotion\.com\/(?:video|embed\/video)\/|dai\.ly\/)([^"?&\/\s]+)/)?.[1];
+        currentPlatform = 'dailymotion';
+        return videoId ? 'https://www.dailymotion.com/embed/video/' + videoId : url;
+      } else {
+        currentPlatform = 'generic';
+        return url;
       }
-      return url;
     }
 
     // Загрузка видео по URL
     function loadVideoFromUrl(url) {
-      var videoId = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
-      if (videoId) {
-        console.log('Extracted videoId:', videoId);
-        if (ytApiReady && !player) {
-          loadVideoFromId(videoId);
-        } else if (!ytApiReady) {
-          pendingVideoId = videoId;
-          errorDiv.textContent = 'Ожидание загрузки YouTube API...';
-          checkYouTubeApi();
+      if (currentPlatform === 'youtube') {
+        var videoId = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
+        if (videoId) {
+          console.log('Extracted YouTube videoId:', videoId);
+          genericPlayer.style.display = 'none';
+          document.getElementById('player').style.display = 'block';
+          if (ytApiReady && !player) {
+            loadVideoFromId(videoId);
+          } else if (!ytApiReady) {
+            pendingVideoId = videoId;
+            errorDiv.textContent = 'Ожидание загрузки YouTube API...';
+            checkYouTubeApi();
+          } else {
+            player.loadVideoById(videoId);
+            console.log('Loaded YouTube video by ID:', videoId);
+          }
         } else {
-          player.loadVideoById(videoId);
-          console.log('Loaded video by ID:', videoId);
+          errorDiv.textContent = 'Ошибка: неверный URL YouTube';
+          console.error('Invalid YouTube URL:', url);
+        }
+      } else if (currentPlatform === 'vimeo') {
+        var videoId = url.match(/(?:vimeo\.com\/|player\.vimeo\.com\/video\/)([0-9]+)/)?.[1];
+        if (videoId) {
+          loadGenericVideo('https://player.vimeo.com/video/' + videoId + '?controls=' + (isHost ? 1 : 0));
+          console.log('Loaded Vimeo video:', url);
+        } else {
+          errorDiv.textContent = 'Ошибка: неверный URL Vimeo';
+          console.error('Invalid Vimeo URL:', url);
+        }
+      } else if (currentPlatform === 'dailymotion') {
+        var videoId = url.match(/(?:dailymotion\.com\/(?:video|embed\/video)\/|dai\.ly\/)([^"?&\/\s]+)/)?.[1];
+        if (videoId) {
+          loadGenericVideo('https://www.dailymotion.com/embed/video/' + videoId + '?controls=' + (isHost ? 1 : 0));
+          console.log('Loaded Dailymotion video:', url);
+        } else {
+          errorDiv.textContent = 'Ошибка: неверный URL Dailymotion';
+          console.error('Invalid Dailymotion URL:', url);
         }
       } else {
-        errorDiv.textContent = 'Ошибка: неверный URL видео';
-        console.error('Invalid video URL:', url);
+        loadGenericVideo(url);
+        errorDiv.textContent = 'Предупреждение: синхронизация ограничена для этой платформы';
+        console.log('Loaded generic video:', url);
       }
     }
 
-    // Загрузка видео по ID
+    // Загрузка YouTube-видео по ID
     function loadVideoFromId(videoId) {
       try {
         player = new YT.Player('player', {
-          height: '450',
-          width: '800',
+          height: '100%',
+          width: '100%',
           videoId: videoId,
           playerVars: {
             'enablejsapi': 1,
             'autoplay': 0,
-            'controls': isHost ? 1 : 0, // Управление только для хоста
+            'controls': isHost ? 1 : 0,
             'origin': window.location.origin
           },
           events: {
@@ -233,23 +421,35 @@
             'onError': onPlayerError
           }
         });
-        console.log('Player initialized for videoId:', videoId);
+        console.log('YouTube player initialized for videoId:', videoId);
         errorDiv.textContent = '';
       } catch (e) {
-        errorDiv.textContent = 'Ошибка загрузки плеера: ' + e.message;
-        console.error('Player load error:', e);
+        errorDiv.textContent = 'Ошибка загрузки YouTube-плеера: ' + e.message;
+        console.error('YouTube player load error:', e);
       }
     }
 
-    // Видео готово
+    // Загрузка видео через iframe (Vimeo, Dailymotion, другие)
+    function loadGenericVideo(embedUrl) {
+      try {
+        document.getElementById('player').style.display = 'none';
+        genericPlayer.style.display = 'block';
+        genericPlayer.src = embedUrl;
+        errorDiv.textContent = currentPlatform !== 'youtube' ? 'Предупреждение: синхронизация ограничена для этой платформы' : '';
+      } catch (e) {
+        errorDiv.textContent = 'Ошибка загрузки видео: ' + e.message;
+        console.error('Generic video load error:', e);
+      }
+    }
+
+    // Видео готово (YouTube)
     function onPlayerReady(event) {
-      console.log('Player ready');
+      console.log('YouTube player ready');
       if (isHost) {
         event.target.pauseVideo();
       }
       errorDiv.textContent = '';
-      // Периодическая синхронизация для хоста
-      if (isHost) {
+      if (isHost && currentPlatform === 'youtube') {
         setInterval(function() {
           if (player && conn && conn.open) {
             var currentTime = player.getCurrentTime();
@@ -261,7 +461,7 @@
       }
     }
 
-    // Ошибка плеера
+    // Ошибка плеера (YouTube)
     function onPlayerError(event) {
       errorDiv.textContent = 'Ошибка YouTube: код ' + event.data;
       console.error('YouTube Player Error:', event.data);
@@ -270,10 +470,10 @@
       }
     }
 
-    // Изменение состояния видео
+    // Изменение состояния видео (YouTube)
     function onPlayerStateChange(event) {
-      if (!isHost || !conn || !conn.open) return;
-      console.log('State changed:', event.data);
+      if (!isHost || !conn || !conn.open || currentPlatform !== 'youtube') return;
+      console.log('YouTube state changed:', event.data);
       if (event.data === YT.PlayerState.PLAYING) {
         var currentTime = player.getCurrentTime();
         conn.send({ type: 'play', time: currentTime });
@@ -289,7 +489,7 @@
       if (peer && peer.id) {
         isHost = true;
         status.textContent = 'Статус: Комната создана, ваш ID: ' + peer.id;
-        alert('Поделитесь этим ID с другими: ' + peer.id);
+        showNotification('Комната создана с ID: ' + peer.id);
         console.log('Room created, ID:', peer.id);
       } else {
         status.textContent = 'Статус: Ошибка создания комнаты';
@@ -305,8 +505,9 @@
         conn = peer.connect(roomId);
         conn.on('open', function() {
           status.textContent = 'Статус: Подключено к комнате';
-          setupConnection();
+          showNotification('Успешно подключено к комнате');
           console.log('Joined room:', roomId);
+          setupConnection();
         });
         conn.on('error', function(err) {
           errorDiv.textContent = 'Ошибка соединения: ' + err.message;
@@ -319,13 +520,16 @@
 
     // Ручная синхронизация
     function syncVideo() {
-      if (isHost && conn && conn.open && player) {
+      if (isHost && conn && conn.open && player && currentPlatform === 'youtube') {
         var currentTime = player.getCurrentTime();
         var state = player.getPlayerState();
         conn.send({ type: 'sync', time: currentTime, state: state });
         console.log('Sent sync command:', { time: currentTime, state: state });
+        showNotification('Видео синхронизировано');
       } else if (!isHost) {
         errorDiv.textContent = 'Только хост может синхронизировать видео';
+      } else if (currentPlatform !== 'youtube') {
+        errorDiv.textContent = 'Синхронизация доступна только для YouTube';
       }
     }
 
