@@ -413,7 +413,7 @@
             'enablejsapi': 1,
             'autoplay': 0,
             'controls': isHost ? 1 : 0,
-            'origin': window.location.origin
+            'origin': 'https://resdjga.github.io'
           },
           events: {
             'onReady': onPlayerReady,
@@ -426,6 +426,7 @@
       } catch (e) {
         errorDiv.textContent = 'Ошибка загрузки YouTube-плеера: ' + e.message;
         console.error('YouTube player load error:', e);
+        showNotification('Ошибка загрузки YouTube-плеера. Проверьте подключение.');
       }
     }
 
@@ -439,6 +440,7 @@
       } catch (e) {
         errorDiv.textContent = 'Ошибка загрузки видео: ' + e.message;
         console.error('Generic video load error:', e);
+        showNotification('Ошибка загрузки видео. Проверьте URL.');
       }
     }
 
@@ -467,6 +469,9 @@
       console.error('YouTube Player Error:', event.data);
       if (event.data === 100 || event.data === 101 || event.data === 150) {
         errorDiv.textContent += ' (видео недоступно или запрещено для встраивания)';
+        showNotification('Видео недоступно или запрещено для встраивания');
+      } else {
+        showNotification('Ошибка воспроизведения YouTube. Попробуйте другой URL.');
       }
     }
 
@@ -495,6 +500,7 @@
         status.textContent = 'Статус: Ошибка создания комнаты';
         console.error('Room creation failed: peer or peer.id is undefined');
         errorDiv.textContent = 'Ошибка: не удалось создать комнату. Проверьте соединение с PeerJS.';
+        showNotification('Ошибка создания комнаты. Проверьте соединение.');
       }
     }
 
@@ -512,9 +518,11 @@
         conn.on('error', function(err) {
           errorDiv.textContent = 'Ошибка соединения: ' + err.message;
           console.error('Connection error:', err);
+          showNotification('Ошибка соединения. Проверьте ID комнаты.');
         });
       } else {
         errorDiv.textContent = 'Ошибка: введите ID комнаты или проверьте PeerJS';
+        showNotification('Ошибка: введите ID комнаты или проверьте соединение.');
       }
     }
 
@@ -528,8 +536,10 @@
         showNotification('Видео синхронизировано');
       } else if (!isHost) {
         errorDiv.textContent = 'Только хост может синхронизировать видео';
+        showNotification('Только хост может синхронизировать видео');
       } else if (currentPlatform !== 'youtube') {
         errorDiv.textContent = 'Синхронизация доступна только для YouTube';
+        showNotification('Синхронизация доступна только для YouTube');
       }
     }
 
