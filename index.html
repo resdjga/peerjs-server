@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Синхронный прос Ascendingly просмотров видео</title>
+  <title>Синхронный просмотр видео</title>
   <script src="https://unpkg.com/peerjs@latest/dist/peerjs.min.js"></script>
   <script src="https://www.youtube.com/iframe_api"></script>
   <style>
@@ -74,14 +74,14 @@
   </div>
 
   <script>
-    let peer;
-    let conn;
-    let isHost = false;
-    let player;
-    const status = document.getElementById('status');
-    const errorDiv = document.getElementById('error');
-    let.ytApiReady = false;
-    let pendingVideoId = null;
+    var peer;
+    var conn;
+    var isHost = false;
+    var player;
+    var status = document.getElementById('status');
+    var errorDiv = document.getElementById('error');
+    var ytApiReady = false;
+    var pendingVideoId = null;
 
     // Проверка загрузки YouTube API
     function onYouTubeIframeAPIReady() {
@@ -105,32 +105,39 @@
 
     // Инициализация PeerJS
     function initPeer() {
-      peer = new Peer({
-        host: '0.peerjs.com',
-        port: 443,
-        secure: true,
-        debug: 2
-      });
-      peer.on('open', (id) => {
-        status.textContent = `Статус: Ваш ID ${id}`;
-        console.log('Peer ID:', id);
-      });
-      peer.on('connection', (connection) => {
-        conn = connection;
-        setupConnection();
-        status.textContent = 'Статус: Подключен клиент';
-        console.log('Client connected:', connection.peer);
-      });
-      peer.on('error', (err) => {
-        status.textContent = `Статус: Ошибка - ${err.message}`;
-        console.error('PeerJS Error:', err);
-        errorDiv.textContent = `Ошибка соединения: ${err.message}`;
-      });
+      try {
+        peer = new Peer({
+          host: '0.peerjs.com',
+          port: 443,
+          secure: true,
+          debug: 2
+        });
+        peer.on('open', function(id) {
+          status.textContent = 'Статус: Ваш ID ' + id;
+          console.log('Peer ID:', id);
+          errorDiv.textContent = '';
+        });
+        peer.on('connection', function(connection) {
+          conn = connection;
+          setupConnection();
+          status.textContent = 'Статус: Подключен клиент';
+          console.log('Client connected:', connection.peer);
+        });
+        peer.on('error', function(err) {
+          status.textContent = 'Статус: Ошибка PeerJS';
+          console.error('PeerJS Error:', err.type, err);
+          errorDiv.textContent = 'Ошибка PeerJS: ' + err.type + ' - ' + err.message;
+        });
+      } catch (e) {
+        status.textContent = 'Статус: Ошибка инициализации PeerJS';
+        console.error('PeerJS init error:', e);
+        errorDiv.textContent = 'Ошибка инициализации PeerJS: ' + e.message;
+      }
     }
 
     // Настройка соединения
     function setupConnection() {
-      conn.on('data', (data) => {
+      conn.on('data', function(data) {
         console.log('Received data:', data);
         if (data.type === 'play') {
           if (player && ytApiReady) {
@@ -164,9 +171,9 @@
 
     // Загрузка видео
     function loadVideo() {
-      const url = document.getElementById('videoUrl').value;
+      var url = document.getElementById('videoUrl').value;
       if (url) {
-        const normalizedUrl = normalizeUrl(url);
+        var normalizedUrl = normalizeUrl(url);
         loadVideoFromUrl(normalizedUrl);
         if (conn && conn.open) {
           conn.send({ type: 'load', url: normalizedUrl });
@@ -180,15 +187,15 @@
     // Нормализация URL
     function normalizeUrl(url) {
       if (url.includes('youtube.com') || url.includes('youtu.be')) {
-        const videoId = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
-        return videoId ? `https://www.youtube.com/watch?v=${videoId}` : url;
+        var videoId = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
+        return videoId ? 'https://www.youtube.com/watch?v=' + videoId : url;
       }
       return url;
     }
 
     // Загрузка видео по URL
     function loadVideoFromUrl(url) {
-      const videoId = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
+      var videoId = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
       if (videoId) {
         console.log('Extracted videoId:', videoId);
         if (ytApiReady && !player) {
@@ -229,7 +236,7 @@
         console.log('Player initialized for videoId:', videoId);
         errorDiv.textContent = '';
       } catch (e) {
-        errorDiv.textContent = `Ошибка загрузки плеера: ${e.message}`;
+        errorDiv.textContent = 'Ошибка загрузки плеера: ' + e.message;
         console.error('Player load error:', e);
       }
     }
@@ -243,10 +250,10 @@
       errorDiv.textContent = '';
       // Периодическая синхронизация для хоста
       if (isHost) {
-        setInterval(() => {
+        setInterval(function() {
           if (player && conn && conn.open) {
-            const currentTime = player.getCurrentTime();
-            const state = player.getPlayerState();
+            var currentTime = player.getCurrentTime();
+            var state = player.getPlayerState();
             conn.send({ type: 'sync', time: currentTime, state: state });
             console.log('Sent periodic sync:', { time: currentTime, state: state });
           }
@@ -256,7 +263,7 @@
 
     // Ошибка плеера
     function onPlayerError(event) {
-      errorDiv.textContent = `Ошибка YouTube: код ${event.data}`;
+      errorDiv.textContent = 'Ошибка YouTube: код ' + event.data;
       console.error('YouTube Player Error:', event.data);
       if (event.data === 100 || event.data === 101 || event.data === 150) {
         errorDiv.textContent += ' (видео недоступно или запрещено для встраивания)';
@@ -268,7 +275,7 @@
       if (!isHost || !conn || !conn.open) return;
       console.log('State changed:', event.data);
       if (event.data === YT.PlayerState.PLAYING) {
-        const currentTime = player.getCurrentTime();
+        var currentTime = player.getCurrentTime();
         conn.send({ type: 'play', time: currentTime });
         console.log('Sent play command, time:', currentTime);
       } else if (event.data === YT.PlayerState.PAUSED) {
@@ -281,39 +288,40 @@
     function generateLink() {
       if (peer && peer.id) {
         isHost = true;
-        status.textContent = `Статус: Комната создана, ваш ID: ${peer.id}`;
-        alert(`Поделитесь этим ID с другими: ${peer.id}`);
+        status.textContent = 'Статус: Комната создана, ваш ID: ' + peer.id;
+        alert('Поделитесь этим ID с другими: ' + peer.id);
         console.log('Room created, ID:', peer.id);
       } else {
         status.textContent = 'Статус: Ошибка создания комнаты';
-        console.error('Room creation failed');
+        console.error('Room creation failed: peer or peer.id is undefined');
+        errorDiv.textContent = 'Ошибка: не удалось создать комнату. Проверьте соединение с PeerJS.';
       }
     }
 
     // Присоединение к комнате
     function joinRoom() {
-      const roomId = document.getElementById('roomId').value;
+      var roomId = document.getElementById('roomId').value;
       if (roomId && peer) {
         conn = peer.connect(roomId);
-        conn.on('open', () => {
+        conn.on('open', function() {
           status.textContent = 'Статус: Подключено к комнате';
           setupConnection();
           console.log('Joined room:', roomId);
         });
-        conn.on('error', (err) => {
-          errorDiv.textContent = `Ошибка соединения: ${err.message}`;
+        conn.on('error', function(err) {
+          errorDiv.textContent = 'Ошибка соединения: ' + err.message;
           console.error('Connection error:', err);
         });
       } else {
-        errorDiv.textContent = 'Ошибка: введите ID комнаты';
+        errorDiv.textContent = 'Ошибка: введите ID комнаты или проверьте PeerJS';
       }
     }
 
     // Ручная синхронизация
     function syncVideo() {
       if (isHost && conn && conn.open && player) {
-        const currentTime = player.getCurrentTime();
-        const state = player.getPlayerState();
+        var currentTime = player.getCurrentTime();
+        var state = player.getPlayerState();
         conn.send({ type: 'sync', time: currentTime, state: state });
         console.log('Sent sync command:', { time: currentTime, state: state });
       } else if (!isHost) {
