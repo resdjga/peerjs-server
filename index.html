@@ -224,7 +224,7 @@
           playerVars: {
             'enablejsapi': 1,
             'autoplay': 0,
-            'controls': 1,
+            'controls': isHost ? 1 : 0, // Управление только для хоста
             'origin': window.location.origin
           },
           events: {
