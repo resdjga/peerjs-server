@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Синхронный просмотр видео</title>
+  <script src="https://unpkg.com/peerjs@latest/dist/peerjs.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background-color: #f0f0f0;
+      margin: 0;
+      padding: 20px;
+    }
+    #videoContainer {
+      width: 100%;
+      max-width: 800px;
+      margin-bottom: 20px;
+    }
+    iframe {
+      width: 100%;
+      height: 450px;
+      border: none;
+    }
+    #controls {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 100%;
+      max-width: 800px;
+    }
+    input, button {
+      padding: 10px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      cursor: pointer;
+      border: none;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    #status {
+      margin-top: 10px;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+  <h1>Синхронный просмотр видео</h1>
+  <div id="videoContainer">
+    <iframe id="videoFrame" src="" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+  </div>
+  <div id="controls">
+    <input id="videoUrl" type="text" placeholder="Вставьте ссылку на видео (например, YouTube)">
+    <button onclick="loadVideo()">Загрузить видео</button>
+    <button onclick="generateLink()">Создать комнату</button>
+    <input id="roomId" type="text" placeholder="Введите ID комнаты для подключения">
+    <button onclick="joinRoom()">Присоединиться к комнате</button>
+    <div id="status">Статус: Не подключено</div>
+  </div>
+
+  <script>
+    let peer;
+    let conn;
+    let isHost = false;
+    const videoFrame = document.getElementById('videoFrame');
+    const status = document.getElementById('status');
+
+    // Инициализация PeerJS
+    function initPeer() {
+      peer = new Peer({
+        host: '0.peerjs.com',
+        port: 443,
+        secure: true,
+        debug: 2
+      });
+      peer.on('open', (id) => {
+        status.textContent = `Статус: Ваш ID ${id}`;
+      });
+      peer.on('connection', (connection) => {
+        conn = connection;
+        setupConnection();
+        status.textContent = 'Статус: Подключен клиент';
+      });
+      peer.on('error', (err) => {
+        status.textContent = `Статус: Ошибка - ${err.message}`;
+        console.error('PeerJS Error:', err);
+      });
+    }
+
+    // Настройка соединения
+    function setupConnection() {
+      conn.on('data', (data) => {
+        if (data.type === 'play') {
+          videoFrame.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+          videoFrame.contentWindow.postMessage(`{"event":"command","func":"seekTo","args":[${data.time}, true]}`, '*');
+        } else if (data.type === 'pause') {
+          videoFrame.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+        } else if (data.type === 'load') {
+          videoFrame.src = data.url;
+        }
+      });
+    }
+
+    // Загрузка видео
+    function loadVideo() {
+      const url = document.getElementById('videoUrl').value;
+      if (url) {
+        videoFrame.src = normalizeUrl(url);
+        if (conn && conn.open) {
+          conn.send({ type: 'load', url: videoFrame.src });
+        }
+      }
+    }
+
+    // Нормализация URL (например, для YouTube)
+    function normalizeUrl(url) {
+      if (url.includes('youtube.com') || url.includes('youtu.be')) {
+        const videoId = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
+        return videoId ? `https://www.youtube.com/embed/${videoId}?enablejsapi=1` : url;
+      }
+      return url;
+    }
+
+    // Создание комнаты
+    function generateLink() {
+      if (peer && peer.id) {
+        isHost = true;
+        status.textContent = `Статус: Комната создана, ваш ID: ${peer.id}`;
+        alert(`Поделитесь этим ID с другими: ${peer.id}`);
+      } else {
+        status.textContent = 'Статус: Ошибка создания комнаты';
+      }
+    }
+
+    // Присоединение к комнате
+    function joinRoom() {
+      const roomId = document.getElementById('roomId').value;
+      if (roomId && peer) {
+        conn = peer.connect(roomId);
+        conn.on('open', () => {
+          status.textContent = 'Статус: Подключено к комнате';
+          setupConnection();
+        });
+      }
+    }
+
+    // Синхронизация действий хоста
+    window.addEventListener('message', (event) => {
+      if (event.data && typeof event.data === 'string' && isHost && conn && conn.open) {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.event === 'onStateChange') {
+            if (data.info === 1) { // Видео воспроизводится
+              conn.send({ type: 'play', time: videoFrame.contentWindow.postMessage('{"event":"command","func":"getCurrentTime","args":""}', '*') });
+            } else if (data.info === 2) { // Видео на паузе
+              conn.send({ type: 'pause' });
+            }
+          }
+        } catch (e) {}
+      }
+    });
+
+    // Инициализация при загрузке страницы
+    initPeer();
+  </script>
+</body>
+</html>
