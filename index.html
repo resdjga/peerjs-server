@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Синхронный просмотр видео</title>
   <script src="https://unpkg.com/peerjs@latest/dist/peerjs.min.js"></script>
+  <script src="https://www.youtube.com/iframe_api"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -20,7 +21,7 @@
       max-width: 800px;
       margin-bottom: 20px;
     }
-    iframe {
+    #player {
       width: 100%;
       height: 450px;
       border: none;
@@ -56,7 +57,7 @@
 <body>
   <h1>Синхронный просмотр видео</h1>
   <div id="videoContainer">
-    <iframe id="videoFrame" src="" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+    <div id="player"></div>
   </div>
   <div id="controls">
     <input id="videoUrl" type="text" placeholder="Вставьте ссылку на видео (например, YouTube)">
@@ -71,8 +72,13 @@
     let peer;
     let conn;
     let isHost = false;
-    const videoFrame = document.getElementById('videoFrame');
+    let player;
     const status = document.getElementById('status');
+
+    // Инициализация YouTube Player
+    function onYouTubeIframeAPIReady() {
+      console.log('YouTube API Ready');
+    }
 
     // Инициализация PeerJS
     function initPeer() {
@@ -84,11 +90,13 @@
       });
       peer.on('open', (id) => {
         status.textContent = `Статус: Ваш ID ${id}`;
+        console.log('Peer ID:', id);
       });
       peer.on('connection', (connection) => {
         conn = connection;
         setupConnection();
         status.textContent = 'Статус: Подключен клиент';
+        console.log('Client connected:', connection.peer);
       });
       peer.on('error', (err) => {
         status.textContent = `Статус: Ошибка - ${err.message}`;
@@ -99,13 +107,15 @@
     // Настройка соединения
     function setupConnection() {
       conn.on('data', (data) => {
+        console.log('Received data:', data);
+        if (!player) return;
         if (data.type === 'play') {
-          videoFrame.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
-          videoFrame.contentWindow.postMessage(`{"event":"command","func":"seekTo","args":[${data.time}, true]}`, '*');
+          player.seekTo(data.time, true);
+          player.playVideo();
         } else if (data.type === 'pause') {
-          videoFrame.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+          player.pauseVideo();
         } else if (data.type === 'load') {
-          videoFrame.src = data.url;
+          loadVideoFromUrl(data.url);
         }
       });
     }
@@ -114,20 +124,66 @@
     function loadVideo() {
       const url = document.getElementById('videoUrl').value;
       if (url) {
-        videoFrame.src = normalizeUrl(url);
+        const normalizedUrl = normalizeUrl(url);
+        loadVideoFromUrl(normalizedUrl);
         if (conn && conn.open) {
-          conn.send({ type: 'load', url: videoFrame.src });
+          conn.send({ type: 'load', url: normalizedUrl });
+          console.log('Sent load command:', normalizedUrl);
         }
       }
     }
 
-    // Нормализация URL (например, для YouTube)
+    // Загрузка видео по URL
+    function loadVideoFromUrl(url) {
+      const videoId = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
+      if (videoId) {
+        if (player) {
+          player.loadVideoById(videoId);
+        } else {
+          player = new YT.Player('player', {
+            height: '450',
+            width: '800',
+            videoId: videoId,
+            playerVars: { 'enablejsapi': 1, 'autoplay': 0, 'controls': 1 },
+            events: {
+              'onReady': onPlayerReady,
+              'onStateChange': onPlayerStateChange
+            }
+          });
+        }
+        console.log('Loaded video:', videoId);
+      }
+    }
+
+    // Нормализация URL
     function normalizeUrl(url) {
       if (url.includes('youtube.com') || url.includes('youtu.be')) {
         const videoId = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
-        return videoId ? `https://www.youtube.com/embed/${videoId}?enablejsapi=1` : url;
+        return videoId ? `https://www.youtube.com/watch?v=${videoId}` : url;
       }
       return url;
+    }
+
+    // Видео готово
+    function onPlayerReady(event) {
+      console.log('Player ready');
+      if (isHost) {
+        event.target.pauseVideo(); // Хост ждет подключения клиентов
+      }
+    }
+
+    // Изменение состояния видео
+    function onPlayerStateChange(event) {
+      if (!isHost || !conn || !conn.open) return;
+      console.log('State changed:', event.data);
+      if (event.data === YT.PlayerState.PLAYING) {
+        const currentTime = player.getCurrentTime();
+        conn.send({ type: 'play', time: currentTime });
+        console.log('Sent play command, time:', currentTime);
+      } else if (event.data === YT.PlayerState.PAUSED) {
+        conn.send({ type: 'pause' });
+        console.log('Sent pause command');
+      }
     }
 
     // Создание комнаты
@@ -136,8 +192,10 @@
         isHost = true;
         status.textContent = `Статус: Комната создана, ваш ID: ${peer.id}`;
         alert(`Поделитесь этим ID с другими: ${peer.id}`);
+        console.log('Room created, ID:', peer.id);
       } else {
         status.textContent = 'Статус: Ошибка создания комнаты';
+        console.error('Room creation failed');
       }
     }
 
@@ -149,25 +207,13 @@
         conn.on('open', () => {
           status.textContent = 'Статус: Подключено к комнате';
           setupConnection();
+          console.log('Joined room:', roomId);
+        });
+        conn.on('error', (err) => {
+          console.error('Connection error:', err);
         });
       }
     }
-
-    // Синхронизация действий хоста
-    window.addEventListener('message', (event) => {
-      if (event.data && typeof event.data === 'string' && isHost && conn && conn.open) {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.event === 'onStateChange') {
-            if (data.info === 1) { // Видео воспроизводится
-              conn.send({ type: 'play', time: videoFrame.contentWindow.postMessage('{"event":"command","func":"getCurrentTime","args":""}', '*') });
-            } else if (data.info === 2) { // Видео на паузе
-              conn.send({ type: 'pause' });
-            }
-          }
-        } catch (e) {}
-      }
-    });
 
     // Инициализация при загрузке страницы
     initPeer();
