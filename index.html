@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Синхронный просмотр видео</title>
+  <title>Синхронный прос Ascendingly просмотров видео</title>
   <script src="https://unpkg.com/peerjs@latest/dist/peerjs.min.js"></script>
   <script src="https://www.youtube.com/iframe_api"></script>
   <style>
@@ -48,9 +48,12 @@
     button:hover {
       background-color: #45a049;
     }
-    #status {
+    #status, #error {
       margin-top: 10px;
       color: #333;
+    }
+    #error {
+      color: red;
     }
   </style>
 </head>
@@ -65,7 +68,9 @@
     <button onclick="generateLink()">Создать комнату</button>
     <input id="roomId" type="text" placeholder="Введите ID комнаты для подключения">
     <button onclick="joinRoom()">Присоединиться к комнате</button>
+    <button onclick="syncVideo()">Синхронизировать видео</button>
     <div id="status">Статус: Не подключено</div>
+    <div id="error"></div>
   </div>
 
   <script>
@@ -74,10 +79,28 @@
     let isHost = false;
     let player;
     const status = document.getElementById('status');
+    const errorDiv = document.getElementById('error');
+    let.ytApiReady = false;
+    let pendingVideoId = null;
 
-    // Инициализация YouTube Player
+    // Проверка загрузки YouTube API
     function onYouTubeIframeAPIReady() {
+      ytApiReady = true;
       console.log('YouTube API Ready');
+      errorDiv.textContent = '';
+      if (pendingVideoId) {
+        loadVideoFromId(pendingVideoId);
+        pendingVideoId = null;
+      }
+    }
+
+    // Повторная попытка загрузки API
+    function checkYouTubeApi() {
+      if (!ytApiReady) {
+        console.log('YouTube API not loaded, retrying...');
+        errorDiv.textContent = 'Ожидание загрузки YouTube API...';
+        setTimeout(checkYouTubeApi, 1000);
+      }
     }
 
     // Инициализация PeerJS
@@ -101,6 +124,7 @@
       peer.on('error', (err) => {
         status.textContent = `Статус: Ошибка - ${err.message}`;
         console.error('PeerJS Error:', err);
+        errorDiv.textContent = `Ошибка соединения: ${err.message}`;
       });
     }
 
@@ -108,14 +132,32 @@
     function setupConnection() {
       conn.on('data', (data) => {
         console.log('Received data:', data);
-        if (!player) return;
         if (data.type === 'play') {
-          player.seekTo(data.time, true);
-          player.playVideo();
+          if (player && ytApiReady) {
+            player.seekTo(data.time, true);
+            player.playVideo();
+            errorDiv.textContent = '';
+          } else {
+            errorDiv.textContent = 'Ошибка: плеер не готов';
+            console.error('Player not ready for play command');
+          }
         } else if (data.type === 'pause') {
-          player.pauseVideo();
+          if (player && ytApiReady) {
+            player.pauseVideo();
+            errorDiv.textContent = '';
+          }
         } else if (data.type === 'load') {
           loadVideoFromUrl(data.url);
+        } else if (data.type === 'sync') {
+          if (player && ytApiReady) {
+            player.seekTo(data.time, true);
+            if (data.state === YT.PlayerState.PLAYING) {
+              player.playVideo();
+            } else {
+              player.pauseVideo();
+            }
+            errorDiv.textContent = '';
+          }
         }
       });
     }
@@ -130,28 +172,8 @@
           conn.send({ type: 'load', url: normalizedUrl });
           console.log('Sent load command:', normalizedUrl);
         }
-      }
-    }
-
-    // Загрузка видео по URL
-    function loadVideoFromUrl(url) {
-      const videoId = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
-      if (videoId) {
-        if (player) {
-          player.loadVideoById(videoId);
-        } else {
-          player = new YT.Player('player', {
-            height: '450',
-            width: '800',
-            videoId: videoId,
-            playerVars: { 'enablejsapi': 1, 'autoplay': 0, 'controls': 1 },
-            events: {
-              'onReady': onPlayerReady,
-              'onStateChange': onPlayerStateChange
-            }
-          });
-        }
-        console.log('Loaded video:', videoId);
+      } else {
+        errorDiv.textContent = 'Ошибка: введите URL видео';
       }
     }
 
@@ -164,11 +186,80 @@
       return url;
     }
 
+    // Загрузка видео по URL
+    function loadVideoFromUrl(url) {
+      const videoId = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
+      if (videoId) {
+        console.log('Extracted videoId:', videoId);
+        if (ytApiReady && !player) {
+          loadVideoFromId(videoId);
+        } else if (!ytApiReady) {
+          pendingVideoId = videoId;
+          errorDiv.textContent = 'Ожидание загрузки YouTube API...';
+          checkYouTubeApi();
+        } else {
+          player.loadVideoById(videoId);
+          console.log('Loaded video by ID:', videoId);
+        }
+      } else {
+        errorDiv.textContent = 'Ошибка: неверный URL видео';
+        console.error('Invalid video URL:', url);
+      }
+    }
+
+    // Загрузка видео по ID
+    function loadVideoFromId(videoId) {
+      try {
+        player = new YT.Player('player', {
+          height: '450',
+          width: '800',
+          videoId: videoId,
+          playerVars: {
+            'enablejsapi': 1,
+            'autoplay': 0,
+            'controls': 1,
+            'origin': window.location.origin
+          },
+          events: {
+            'onReady': onPlayerReady,
+            'onStateChange': onPlayerStateChange,
+            'onError': onPlayerError
+          }
+        });
+        console.log('Player initialized for videoId:', videoId);
+        errorDiv.textContent = '';
+      } catch (e) {
+        errorDiv.textContent = `Ошибка загрузки плеера: ${e.message}`;
+        console.error('Player load error:', e);
+      }
+    }
+
     // Видео готово
     function onPlayerReady(event) {
       console.log('Player ready');
       if (isHost) {
-        event.target.pauseVideo(); // Хост ждет подключения клиентов
+        event.target.pauseVideo();
+      }
+      errorDiv.textContent = '';
+      // Периодическая синхронизация для хоста
+      if (isHost) {
+        setInterval(() => {
+          if (player && conn && conn.open) {
+            const currentTime = player.getCurrentTime();
+            const state = player.getPlayerState();
+            conn.send({ type: 'sync', time: currentTime, state: state });
+            console.log('Sent periodic sync:', { time: currentTime, state: state });
+          }
+        }, 5000);
+      }
+    }
+
+    // Ошибка плеера
+    function onPlayerError(event) {
+      errorDiv.textContent = `Ошибка YouTube: код ${event.data}`;
+      console.error('YouTube Player Error:', event.data);
+      if (event.data === 100 || event.data === 101 || event.data === 150) {
+        errorDiv.textContent += ' (видео недоступно или запрещено для встраивания)';
       }
     }
 
@@ -210,13 +301,29 @@
           console.log('Joined room:', roomId);
         });
         conn.on('error', (err) => {
+          errorDiv.textContent = `Ошибка соединения: ${err.message}`;
           console.error('Connection error:', err);
         });
+      } else {
+        errorDiv.textContent = 'Ошибка: введите ID комнаты';
       }
     }
 
-    // Инициализация при загрузке страницы
+    // Ручная синхронизация
+    function syncVideo() {
+      if (isHost && conn && conn.open && player) {
+        const currentTime = player.getCurrentTime();
+        const state = player.getPlayerState();
+        conn.send({ type: 'sync', time: currentTime, state: state });
+        console.log('Sent sync command:', { time: currentTime, state: state });
+      } else if (!isHost) {
+        errorDiv.textContent = 'Только хост может синхронизировать видео';
+      }
+    }
+
+    // Инициализация
     initPeer();
+    checkYouTubeApi();
   </script>
 </body>
 </html>
